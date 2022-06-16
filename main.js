@@ -15,7 +15,8 @@
           os: 'other',
           osVersion: 0,
           mobile: false,
-          canUse: null
+          canUse: null,
+          flags: { lsdUnits: false }
         },
         ua = navigator.userAgent,
         a,
@@ -86,25 +87,21 @@
         o.os = 'ios';
       o.mobile = o.os == 'android' || o.os == 'ios';
       var _canUse = document.createElement('div');
-      o.canUse = function (p) {
-        var e = _canUse.style,
-          up = p.charAt(0).toUpperCase() + p.slice(1);
-        return (
-          p in e ||
-          'Moz' + up in e ||
-          'Webkit' + up in e ||
-          'O' + up in e ||
-          'ms' + up in e
-        );
+      o.canUse = function (property, value) {
+        var style;
+        style = _canUse.style;
+        if (!(property in style)) return false;
+        if (typeof value !== 'undefined') {
+          style[property] = value;
+          if (style[property] == '') return false;
+        }
+        return true;
       };
+      o.flags.lsdUnits = o.canUse('width', '100dvw');
       return o;
     })(),
     trigger = function (t) {
-      if (client.browser == 'ie') {
-        var e = document.createEvent('Event');
-        e.initEvent(t, false, true);
-        dispatchEvent(e);
-      } else dispatchEvent(new Event(t));
+      dispatchEvent(new Event(t));
     },
     cssRules = function (selectorText) {
       var ss = document.styleSheets,
@@ -299,13 +296,13 @@
       ee,
       k,
       locked = false,
-      doNext = function () {
+      doNextSection = function () {
         var section;
         section = $('#main > .inner > section.active').nextElementSibling;
         if (!section || section.tagName != 'SECTION') return;
         location.href = '#' + section.id.replace(/-section$/, '');
       },
-      doPrevious = function () {
+      doPreviousSection = function () {
         var section;
         section = $('#main > .inner > section.active').previousElementSibling;
         if (!section || section.tagName != 'SECTION') return;
@@ -315,23 +312,23 @@
             ? ''
             : section.id.replace(/-section$/, ''));
       },
-      doFirst = function () {
+      doFirstSection = function () {
         var section;
         section = $('#main > .inner > section:first-of-type');
         if (!section || section.tagName != 'SECTION') return;
         location.href = '#' + section.id.replace(/-section$/, '');
       },
-      doLast = function () {
+      doLastSection = function () {
         var section;
         section = $('#main > .inner > section:last-of-type');
         if (!section || section.tagName != 'SECTION') return;
         location.href = '#' + section.id.replace(/-section$/, '');
       },
       sections = {};
-    window._next = doNext;
-    window._previous = doPrevious;
-    window._first = doFirst;
-    window._last = doLast;
+    window._next = doNextSection;
+    window._previous = doPreviousSection;
+    window._first = doFirstSection;
+    window._last = doLastSection;
     window._scrollToTop = function () {
       var section, id;
       scrollToElement(null);
@@ -573,23 +570,34 @@
   sheet = style.sheet;
   if (client.mobile) {
     (function () {
-      var f = function () {
+      if (client.flags.lsdUnits) {
         document.documentElement.style.setProperty(
           '--viewport-height',
-          window.innerHeight + 'px'
+          '100dvh'
         );
         document.documentElement.style.setProperty(
           '--background-height',
-          window.innerHeight + 250 + 'px'
+          '100lvh'
         );
-      };
-      on('load', f);
-      on('resize', f);
-      on('orientationchange', function () {
-        setTimeout(function () {
-          f();
-        }, 100);
-      });
+      } else {
+        var f = function () {
+          document.documentElement.style.setProperty(
+            '--viewport-height',
+            window.innerHeight + 'px'
+          );
+          document.documentElement.style.setProperty(
+            '--background-height',
+            window.innerHeight + 250 + 'px'
+          );
+        };
+        on('load', f);
+        on('resize', f);
+        on('orientationchange', function () {
+          setTimeout(function () {
+            f();
+          }, 100);
+        });
+      }
     })();
   }
   if (client.os == 'android') {
@@ -633,160 +641,5 @@
         );
       })();
     $body.classList.add('is-touch');
-  } else if (client.browser == 'ie') {
-    if (!('matches' in Element.prototype))
-      Element.prototype.matches =
-        Element.prototype.msMatchesSelector ||
-        Element.prototype.webkitMatchesSelector;
-    (function () {
-      var a = cssRules('body::before'),
-        r;
-      if (a.length > 0) {
-        r = a[0];
-        if (r.style.width.match('calc')) {
-          r.style.opacity = 0.9999;
-          setTimeout(function () {
-            r.style.opacity = 1;
-          }, 100);
-        } else {
-          document.styleSheets[0].addRule(
-            'body::before',
-            'content: none !important;'
-          );
-          $body.style.backgroundImage = r.style.backgroundImage.replace(
-            'url("images/',
-            'url("assets/images/'
-          );
-          $body.style.backgroundPosition = r.style.backgroundPosition;
-          $body.style.backgroundRepeat = r.style.backgroundRepeat;
-          $body.style.backgroundColor = r.style.backgroundColor;
-          $body.style.backgroundAttachment = 'fixed';
-          $body.style.backgroundSize = r.style.backgroundSize;
-        }
-      }
-    })();
-    (function () {
-      var t, f;
-      f = function () {
-        var mh, h, s, xx, x, i;
-        x = $('#wrapper');
-        x.style.height = 'auto';
-        if (x.scrollHeight <= innerHeight) x.style.height = '100vh';
-        xx = $$('.container.full');
-        for (i = 0; i < xx.length; i++) {
-          x = xx[i];
-          s = getComputedStyle(x);
-          x.style.minHeight = '';
-          x.style.height = '';
-          mh = s.minHeight;
-          x.style.minHeight = 0;
-          x.style.height = '';
-          h = s.height;
-          if (mh == 0) continue;
-          x.style.height = h > mh ? 'auto' : mh;
-        }
-      };
-      f();
-      on('resize', function () {
-        clearTimeout(t);
-        t = setTimeout(f, 250);
-      });
-      on('load', f);
-    })();
-  } else if (client.browser == 'edge') {
-    (function () {
-      var xx = $$('.container > .inner > div:last-child'),
-        x,
-        y,
-        i;
-      for (i = 0; i < xx.length; i++) {
-        x = xx[i];
-        y = getComputedStyle(x.parentNode);
-        if (y.display != 'flex' && y.display != 'inline-flex') continue;
-        x.style.marginLeft = '-1px';
-      }
-    })();
-  }
-  if (!client.canUse('object-fit')) {
-    (function () {
-      var xx = $$('.image[data-position]'),
-        x,
-        w,
-        c,
-        i,
-        src;
-      for (i = 0; i < xx.length; i++) {
-        x = xx[i];
-        c = x.firstElementChild;
-        if (c.tagName != 'IMG') {
-          w = c;
-          c = c.firstElementChild;
-        }
-        if (c.parentNode.classList.contains('deferred')) {
-          c.parentNode.classList.remove('deferred');
-          src = c.getAttribute('data-src');
-          c.removeAttribute('data-src');
-        } else src = c.getAttribute('src');
-        c.style['backgroundImage'] = "url('" + src + "')";
-        c.style['backgroundSize'] = 'cover';
-        c.style['backgroundPosition'] = x.dataset.position;
-        c.style['backgroundRepeat'] = 'no-repeat';
-        c.src =
-          'data:image/svg+xml;charset=utf8,' +
-          escape(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"></svg>'
-          );
-        if (
-          x.classList.contains('full') &&
-          x.parentNode &&
-          x.parentNode.classList.contains('full') &&
-          x.parentNode.parentNode &&
-          x.parentNode.parentNode.parentNode &&
-          x.parentNode.parentNode.parentNode.classList.contains('container') &&
-          x.parentNode.children.length == 1
-        ) {
-          (function (x, w) {
-            var p = x.parentNode.parentNode,
-              f = function () {
-                x.style['height'] = '0px';
-                clearTimeout(t);
-                t = setTimeout(function () {
-                  if (getComputedStyle(p).flexDirection == 'row') {
-                    if (w) w.style['height'] = '100%';
-                    x.style['height'] = p.scrollHeight + 1 + 'px';
-                  } else {
-                    if (w) w.style['height'] = 'auto';
-                    x.style['height'] = 'auto';
-                  }
-                }, 125);
-              },
-              t;
-            on('resize', f);
-            on('load', f);
-            f();
-          })(x, w);
-        }
-      }
-    })();
-    (function () {
-      var xx = $$('.gallery img'),
-        x,
-        p,
-        i,
-        src;
-      for (i = 0; i < xx.length; i++) {
-        x = xx[i];
-        p = x.parentNode;
-        if (p.classList.contains('deferred')) {
-          p.classList.remove('deferred');
-          src = x.getAttribute('data-src');
-        } else src = x.getAttribute('src');
-        p.style['backgroundImage'] = "url('" + src + "')";
-        p.style['backgroundSize'] = 'cover';
-        p.style['backgroundPosition'] = 'center';
-        p.style['backgroundRepeat'] = 'no-repeat';
-        x.style['opacity'] = '0';
-      }
-    })();
   }
 })();
